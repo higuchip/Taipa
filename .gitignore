@@ -1,0 +1,62 @@
+# Arquivos Python compilados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição e packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ambientes virtuais
+venv/
+ENV/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# Arquivos de logs e relatórios de testes
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Arquivos de tradução
+*.mo
+*.pot
+
+# Configurações específicas de IDEs/Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Variáveis de ambiente e configurações sensíveis
+.streamlit/
+*.toml
+
+# Arquivos e pastas do sistema operacional
+.DS_Store
+Thumbs.db
+Desktop.ini

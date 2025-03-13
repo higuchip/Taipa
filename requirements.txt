@@ -1,0 +1,13 @@
+streamlit==1.43.0
+pandas==2.2.3
+numpy==2.2.3
+requests==2.32.3
+folium==0.19.5
+geobr==0.2.2
+matplotlib==3.10.1
+seaborn==0.13.2
+streamlit_folium==0.24.0
+shapely==2.0.7
+earthengine-api==1.5.5
+scipy==1.15.2
+statsmodels==0.14.4

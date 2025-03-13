@@ -30,28 +30,39 @@ import json
 # Autenticação e Inicialização do Earth Engine
 # =============================================================================
 
+# Carrega o JSON completo dos secrets
+json_data = st.secrets["json_data"]
+service_account = st.secrets["service_account"]
+
+json_object = json.loads(json_data, strict=False)
+service_account = json_object['client_email']
+json_object = json.dumps(json_object)
+# Authorising the app
+credentials = ee.ServiceAccountCredentials(service_account, key_data=json_object)
+ee.Initialize(credentials)
+
 #ee.Authenticate()
 #ee.Initialize(project=st.secrets["earthengine"]["project"])
-def ee_initialize(force_use_service_account=False):
-    if force_use_service_account or "json_data" in st.secrets:
-        json_credentials = st.secrets["json_data"]
-        # Se os dados já estiverem como um objeto JSON, você pode usar diretamente
-        # Caso contrário, se estiverem como string, use json.loads(json_credentials)
-        if isinstance(json_credentials, str):
-            credentials_dict = json.loads(json_credentials)
-        else:
-            credentials_dict = json_credentials
-        if 'client_email' not in credentials_dict:
-            raise ValueError("Service account info is missing 'client_email' field.")
-        credentials = service_account.Credentials.from_service_account_info(
-            credentials_dict, scopes=oauth.SCOPES
-        )
-        ee.Initialize(credentials)
-    else:
-        ee.Initialize()
+# def ee_initialize(force_use_service_account=False):
+#     if force_use_service_account or "json_data" in st.secrets:
+#         json_credentials = st.secrets["json_data"]
+#         # Se os dados já estiverem como um objeto JSON, você pode usar diretamente
+#         # Caso contrário, se estiverem como string, use json.loads(json_credentials)
+#         if isinstance(json_credentials, str):
+#             credentials_dict = json.loads(json_credentials)
+#         else:
+#             credentials_dict = json_credentials
+#         if 'client_email' not in credentials_dict:
+#             raise ValueError("Service account info is missing 'client_email' field.")
+#         credentials = service_account.Credentials.from_service_account_info(
+#             credentials_dict, scopes=oauth.SCOPES
+#         )
+#         ee.Initialize(credentials)
+#     else:
+#         ee.Initialize()
 
-# Forçar o uso da conta de serviço (útil em produção)
-ee_initialize(force_use_service_account=True)
+# # Forçar o uso da conta de serviço (útil em produção)
+# ee_initialize(force_use_service_account=True)
 
 # Inicializa o Earth Engine
 

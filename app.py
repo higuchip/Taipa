@@ -1,5 +1,5 @@
 # =============================================================================
-# Importação de Bibliotecas (incluindo Seaborn para visualização de correlação)
+# Importação de Bibliotecas 
 # =============================================================================
 
 import streamlit as st

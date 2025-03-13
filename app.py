@@ -33,7 +33,7 @@ import json
 
 
 #ee.Authenticate()
-ee.Initialize(project=st.secrets["earthengine"]["project"])
+#ee.Initialize(project=st.secrets["earthengine"]["project"])
 def ee_initialize(force_use_service_account=False):
     if force_use_service_account or "json_data" in st.secrets:
         json_credentials = st.secrets["json_data"]

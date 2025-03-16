@@ -226,6 +226,96 @@ def fetch_gbif_occurrences(species, limit=100):
 # Funções de Visualização e Extração de Dados
 # =============================================================================
 
+def build_map(df, heatmap=False):
+    """
+    Cria um objeto Folium.Map com os pontos de ocorrência, plugin Draw e,
+    opcionalmente, uma camada de heatmap sobreposta como FeatureGroup.
+    """
+    # Calcula os limites e o centro do mapa com base nos dados
+    min_lat = df["latitude"].min()
+    max_lat = df["latitude"].max()
+    min_lon = df["longitude"].min()
+    max_lon = df["longitude"].max()
+    center = [(min_lat + max_lat) / 2, (min_lon + max_lon) / 2]
+
+    m = folium.Map(location=center)
+    m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
+
+    # Adiciona os pontos em um FeatureGroup para que possam ser gerenciados pelo LayerControl
+    points_fg = folium.FeatureGroup(name="Ocorrências", show=True)
+    for _, row in df.iterrows():
+        folium.CircleMarker(
+            location=[row["latitude"], row["longitude"]],
+            radius=3,
+            color="black",
+            fill=True,
+            fill_color="black",
+            fill_opacity=1
+        ).add_to(points_fg)
+    points_fg.add_to(m)
+
+    # Adiciona o plugin Draw para permitir que o usuário desenhe polígonos
+    draw = Draw(
+        export=False,
+        draw_options={
+            "polygon": True, "polyline": False, "rectangle": False,
+            "circle": False, "marker": False, "circlemarker": False
+        },
+        edit_options={"edit": True}
+    )
+    draw.add_to(m)
+
+    # Se a flag do heatmap estiver ativa, cria um FeatureGroup para o heatmap
+    if heatmap:
+        from folium.plugins import HeatMap
+        heatmap_fg = folium.FeatureGroup(name="Heatmap", show=True)
+        pontos = df[["latitude", "longitude"]].values.tolist()
+        # Parâmetros ajustados para manchas maiores
+        HeatMap(pontos, radius=40, blur=15).add_to(heatmap_fg)
+        heatmap_fg.add_to(m)
+
+    # Adiciona o controle de layers para permitir a seleção das camadas
+    folium.LayerControl().add_to(m)
+    return m
+    
+    return m
+
+
+
+@st.cache_data(show_spinner=True)
+def get_bioclim_stats(df_occ, df_pseudo, _brazil_ee):
+    """
+    Extrai os valores das 19 variáveis bioclimáticas e calcula as estatísticas
+    descritivas para os pontos de presença e pseudoausência.
+    """
+    stats_data = {}
+    raw_data = {}
+    stat_names = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
+
+    for i in range(1, 20):
+        bio_name = f"BIO{i}"
+        bio_image = load_bioclim_var(i)
+        # Obtem o nome da banda
+        band_name = bio_image.bandNames().getInfo()[0]
+        # Recorta a imagem para o polígono do Brasil
+        bio_image_clipped = bio_image.clip(_brazil_ee)
+
+        # Extrai os valores para os pontos de presença e pseudoausência
+        presence_values = extract_values_cached(bio_image_clipped, df_occ, band_name, i)
+        pseudo_values = extract_values_cached(bio_image_clipped, df_pseudo, band_name, i)
+        combined_values = presence_values + pseudo_values
+
+        # Calcula as estatísticas descritivas, ou preenche com NaN se não houver valores
+        if combined_values:
+            combined_stats = pd.Series(combined_values).describe()
+        else:
+            combined_stats = pd.Series({stat: np.nan for stat in stat_names})
+        stats_data[bio_name] = combined_stats
+        raw_data[bio_name] = combined_values
+
+    return stats_data, raw_data
+
+
 def plot_density(values, label, color):
     if len(values) == 0:
         return None, None
@@ -239,6 +329,7 @@ def sample_bio_value(image, lat, lon, band_name, scale=30):
     pt = ee.Geometry.Point([lon, lat])
     sample = image.sample(pt, scale).first()
     return sample.get(band_name).getInfo()
+
 
 # =============================================================================
 # Páginas da Aplicação (Interface com o Usuário)
@@ -258,6 +349,8 @@ def home():
 def search_api():
     st.title("Busca de Ocorrências via API do GBIF")
     st.warning("Os dados da API do GBIF são gratuitos, mas requerem citação. Confira: https://www.gbif.org/citation-guidelines")
+    
+    # Formulário de busca
     with st.form(key="search_form"):
         species = st.text_input("Digite o nome científico da espécie:")
         submitted = st.form_submit_button("Buscar Ocorrências")
@@ -266,37 +359,32 @@ def search_api():
             df_api = fetch_gbif_occurrences(species, limit=100)
             st.session_state.df_api = df_api
             st.session_state.species = species
+            # Limpa a flag do heatmap ao buscar novos dados
+            st.session_state.heatmap_generated = False
+
     if "df_api" in st.session_state:
         df_api = st.session_state.df_api
         st.write("Total de ocorrências retornadas:", len(df_api))
         if not df_api.empty:
             st.write("Visualização dos dados obtidos:")
             st.write(df_api.head())
-            min_lat = df_api["latitude"].min()
-            max_lat = df_api["latitude"].max()
-            min_lon = df_api["longitude"].min()
-            max_lon = df_api["longitude"].max()
-            center = [(min_lat + max_lat) / 2, (min_lon + max_lon) / 2]
-            m = folium.Map(location=center)
-            m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
-            for _, row in df_api.iterrows():
-                folium.CircleMarker(
-                    location=[row["latitude"], row["longitude"]],
-                    radius=3,
-                    color="black",
-                    fill=True,
-                    fill_color="black",
-                    fill_opacity=1
-                ).add_to(m)
-            draw = Draw(
-                export=False,
-                draw_options={"polygon": True, "polyline": False, "rectangle": False, "circle": False, "marker": False, "circlemarker": False},
-                edit_options={"edit": True}
-            )
-            draw.add_to(m)
+            
+            # Botão para ativar o heatmap (a flag é mantida no session_state)
+            if st.button("Gerar Heatmap de Ocorrência"):
+                st.session_state.heatmap_generated = True
+
+            # Constrói o mapa base (com ou sem heatmap, conforme flag)
+            m = build_map(df_api, heatmap=st.session_state.get("heatmap_generated", False))
+            
+            # Renderiza o mapa e captura os dados interativos
             map_data = st_folium(m, width=700, height=500)
+            
+            # Verifica se o usuário desenhou algum polígono para remoção de pontos
             if map_data.get("all_drawings"):
-                polygon_features = [feature for feature in map_data["all_drawings"] if feature.get("geometry", {}).get("type") == "Polygon"]
+                polygon_features = [
+                    feature for feature in map_data["all_drawings"]
+                    if feature.get("geometry", {}).get("type") == "Polygon"
+                ]
                 if polygon_features:
                     st.info("Polígono(s) desenhado(s) detectado(s).")
                     if st.button("Remover pontos dentro do polígono"):
@@ -310,23 +398,9 @@ def search_api():
                         if indices_to_remove:
                             st.session_state.df_api = df_api.drop(indices_to_remove).reset_index(drop=True)
                             st.success(f"{len(indices_to_remove)} ponto(s) removido(s) dentro do polígono.")
+                            # Recria o mapa atualizado com os pontos restantes
                             df_api = st.session_state.df_api
-                            min_lat = df_api["latitude"].min()
-                            max_lat = df_api["latitude"].max()
-                            min_lon = df_api["longitude"].min()
-                            max_lon = df_api["longitude"].max()
-                            center = [(min_lat + max_lat) / 2, (min_lon + max_lon) / 2]
-                            m = folium.Map(location=center)
-                            m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
-                            for _, row in df_api.iterrows():
-                                folium.CircleMarker(
-                                    location=[row["latitude"], row["longitude"]],
-                                    radius=3,
-                                    color="black",
-                                    fill=True,
-                                    fill_color="black",
-                                    fill_opacity=1
-                                ).add_to(m)
+                            m = build_map(df_api, heatmap=st.session_state.get("heatmap_generated", False))
                             st_folium(m, width=700, height=500)
                         else:
                             st.info("Nenhum ponto encontrado dentro do polígono.")
@@ -340,9 +414,13 @@ def pseudo_absences_page():
         df_presence = st.session_state.df_api
         st.write("Visualização dos dados de presença:", df_presence.head())
         n_points = st.slider("Número de pseudoausências a gerar", min_value=50, max_value=500, value=100, step=10)
-        buffer_distance = st.slider("Tamanho do buffer (em graus)", min_value=0.1, max_value=2.0, value=0.5, step=0.1)
+        # Slider para buffer em Km
+        buffer_distance_km = st.slider("Tamanho do buffer (em Km)", min_value=1, max_value=200, value=50, step=1)
+        # Converte de Km para graus (1 grau ≈ 111 Km)
+        buffer_distance_degrees = buffer_distance_km / 111.0
+        
         if st.button("Gerar Pseudoausências"):
-            pseudo_df = generate_pseudo_absences_in_buffers(df_presence, n_points, buffer_distance)
+            pseudo_df = generate_pseudo_absences_in_buffers(df_presence, n_points, buffer_distance_degrees)
             st.session_state.df_pseudo = pseudo_df
             st.success(f"{len(pseudo_df)} pontos de pseudoausência gerados (Dentro dos buffers).")
         if "df_pseudo" in st.session_state:
@@ -376,6 +454,7 @@ def pseudo_absences_page():
     else:
         st.warning("Dados de presença não encontrados. Execute a busca via API primeiro.")
 
+
 def environmental_variables_all():
     st.title("Estatísticas Descritivas - Bioclima")
 
@@ -399,31 +478,9 @@ def environmental_variables_all():
         st.error("Não foi possível converter o polígono do Brasil.")
         return
 
-    stats_data = {}  # Estatísticas descritivas para cada variável BIO
-    raw_data = {}    # Valores extraídos (para cálculo de correlação e VIF)
-    stat_names = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
-
-    # Spinner para informar o processamento dos dados ambientais
+    # Usa uma função cacheada para extrair os dados das variáveis bioclimáticas
     with st.spinner("Extraindo valores das variáveis bioclimáticas..."):
-        for i in range(1, 20):
-            bio_name = f"BIO{i}"
-            # Carrega a imagem da variável e recorta para o Brasil
-            bio_image = load_bioclim_var(i)
-            band_name = bio_image.bandNames().getInfo()[0]
-            bio_image_clipped = bio_image.clip(brazil_ee)
-            
-            # Extrai os valores para pontos de presença e pseudoausência
-            presence_values = extract_values_cached(bio_image_clipped, df_occ, band_name, i)
-            pseudo_values = extract_values_cached(bio_image_clipped, df_pseudo, band_name, i)
-            combined_values = presence_values + pseudo_values
-            
-            # Calcula as estatísticas descritivas (ou preenche com NaN se não houver valores)
-            if combined_values:
-                combined_stats = pd.Series(combined_values).describe()
-            else:
-                combined_stats = pd.Series({stat: np.nan for stat in stat_names})
-            stats_data[bio_name] = combined_stats
-            raw_data[bio_name] = combined_values
+        stats_data, raw_data = get_bioclim_stats(df_occ, df_pseudo, brazil_ee)
 
     # Exibe as estatísticas descritivas dos dados combinados
     df_stats = pd.DataFrame(stats_data).T
@@ -487,57 +544,57 @@ def environmental_variables_all():
 
     # Permite que o usuário selecione as variáveis para visualização
     selected_vars = st.multiselect(
-    "Selecione as variáveis para visualizar no mapa:",
-    options=variables,
-    default=variables
-)
+        "Selecione as variáveis para visualizar no mapa:",
+        options=variables,
+        default=variables
+    )
 
     if selected_vars:
-    # Cria um mapa centrado no polígono do Brasil
+        # Cria um mapa centrado no polígono do Brasil
         bounds = brazil_polygon.bounds
         m = folium.Map(tiles="OpenStreetMap")
         m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
     
-    # Para cada variável selecionada, adiciona uma camada do Earth Engine
-    for var in selected_vars:
-        # Extrai o número da variável (por exemplo, de "BIO3" extrai 3)
-        var_number = int(var.replace("BIO", ""))
-        bio_image = load_bioclim_var(var_number)
-        band_name = bio_image.bandNames().getInfo()[0]
-        # Recorta a imagem para o polígono do Brasil
-        bio_image_clipped = bio_image.clip(shapely_to_ee_geometry(brazil_polygon))
-        # Utiliza os parâmetros de visualização, se disponíveis
-        vis_params = vis_params_dict.get(var_number, {})
-        # Adiciona a camada ao mapa (o método add_ee_layer já deve ter sido incorporado à classe do folium.Map)
-        m.add_ee_layer(bio_image_clipped, vis_params, f"{var} - {bio_descriptions_pt[var_number]}")
+        # Para cada variável selecionada, adiciona uma camada do Earth Engine
+        for var in selected_vars:
+            # Extrai o número da variável (por exemplo, de "BIO3" extrai 3)
+            var_number = int(var.replace("BIO", ""))
+            bio_image = load_bioclim_var(var_number)
+            band_name = bio_image.bandNames().getInfo()[0]
+            # Recorta a imagem para o polígono do Brasil
+            bio_image_clipped = bio_image.clip(shapely_to_ee_geometry(brazil_polygon))
+            # Utiliza os parâmetros de visualização, se disponíveis
+            vis_params = vis_params_dict.get(var_number, {})
+            # Adiciona a camada ao mapa (o método add_ee_layer já foi incorporado à classe do folium.Map)
+            m.add_ee_layer(bio_image_clipped, vis_params, f"{var} - {bio_descriptions_pt[var_number]}")
     
-    # Adiciona os pontos de presença (preto)
-    for _, row in df_occ.iterrows():
-         folium.CircleMarker(
-             location=[row["latitude"], row["longitude"]],
-             radius=3,
-             color="black",
-             fill=True,
-             fill_color="black",
-             fill_opacity=1
-         ).add_to(m)
+        # Adiciona os pontos de presença (preto)
+        for _, row in df_occ.iterrows():
+            folium.CircleMarker(
+                location=[row["latitude"], row["longitude"]],
+                radius=3,
+                color="black",
+                fill=True,
+                fill_color="black",
+                fill_opacity=1
+            ).add_to(m)
     
-    # Adiciona os pontos de pseudoausência (vermelho)
-    for _, row in df_pseudo.iterrows():
-         folium.CircleMarker(
-             location=[row["latitude"], row["longitude"]],
-             radius=3,
-             color="red",
-             fill=True,
-             fill_color="red",
-             fill_opacity=1
-         ).add_to(m)
+        # Adiciona os pontos de pseudoausência (vermelho)
+        for _, row in df_pseudo.iterrows():
+            folium.CircleMarker(
+                location=[row["latitude"], row["longitude"]],
+                radius=3,
+                color="red",
+                fill=True,
+                fill_color="red",
+                fill_opacity=1
+            ).add_to(m)
     
-    # Adiciona um controle de camadas para que o usuário possa ativar/desativar as variáveis
-    folium.LayerControl().add_to(m)
+        # Adiciona um controle de camadas para que o usuário possa ativar/desativar as variáveis
+        folium.LayerControl().add_to(m)
     
-    st.subheader("Visualização das Variáveis Selecionadas no Brasil")
-    st_folium(m, width=700, height=500)
+        st.subheader("Visualização das Variáveis Selecionadas no Brasil")
+        st_folium(m, width=700, height=500)
 
 def run_model():
     st.title("Execução do Modelo MaxEnt")
@@ -595,13 +652,13 @@ def future_projection():
 
 st.sidebar.title("TAIPA - Navegação")
 page = st.sidebar.selectbox("Sfelecione a página", 
-    ["Home", "Busca API",  "Pseudoausências", 
+    ["Home", "Busca Ocorrência",  "Pseudoausências", 
      "Bioclima", "Executar Modelo", "Resultados", "Projeção Futura"])
 
 
 if page == "Home":
     home()
-elif page == "Busca API":
+elif page == "Busca Ocorrência":
     search_api()
 elif page == "Pseudoausências":
     pseudo_absences_page()

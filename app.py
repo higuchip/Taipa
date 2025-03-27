@@ -31,6 +31,35 @@ import rtree  # Para indexação espacial
 from functools import wraps
 from contextlib import nullcontext
 
+# No início do script, após as importações
+@st.cache_resource(ttl="8h")
+def inicializar_ee_singleton():
+    """
+    Função singleton para inicializar o Earth Engine apenas uma vez.
+    Usa cache_resource para manter a conexão entre recarregamentos.
+    """
+    try:
+        if "json_data" in st.secrets:
+            json_credentials = st.secrets["json_data"]
+            if isinstance(json_credentials, str):
+                credentials_dict = json.loads(json_credentials)
+            else:
+                credentials_dict = json_credentials
+            
+            if 'client_email' not in credentials_dict:
+                raise ValueError("Informações da conta de serviço não contêm o campo 'client_email'.")
+            
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict, scopes=oauth.SCOPES
+            )
+            ee.Initialize(credentials)
+            return True
+        else:
+            ee.Initialize()
+            return True
+    except Exception as e:
+        logger.error(f"Falha ao inicializar Earth Engine singleton: {str(e)}", exc_info=True)
+        return False
 
 # =============================================================================
 # Configuração de Logging
@@ -218,7 +247,7 @@ def tratar_excecao(func):
 # =============================================================================
 
 @tratar_excecao
-@tratar_excecao
+
 def inicializar_ee(forcar_conta_servico=False, mostrar_mensagem=False):
     """
     Inicializa o Google Earth Engine com autenticação.
@@ -263,17 +292,16 @@ def inicializar_ee(forcar_conta_servico=False, mostrar_mensagem=False):
             st.error(f"Não foi possível conectar ao Earth Engine: {str(e)}")
         raise
 
-# Inicializa o Earth Engine (sem mostrar mensagem)
-try:
-    inicializar_ee(forcar_conta_servico=True, mostrar_mensagem=False)
-except Exception as e:
-    st.error(f"TAIPA requer conexão com Earth Engine para funcionar corretamente. Erro: {str(e)}")
-
+# Inicializa o Earth Engine usando o singleton para evitar reinicializações
+ee_iniciado = inicializar_ee_singleton()
+if not ee_iniciado:
+    st.error("TAIPA requer conexão com Earth Engine para funcionar corretamente.")
 # =============================================================================
 # Funções Auxiliares (Utilitários)
 # =============================================================================
 
-@st.cache_data(show_spinner=False)
+# Modifique o decorador para compartilhar cache entre usuários e definir um tempo de vida
+@st.cache_data(ttl="1d", show_spinner=False)
 @tratar_excecao
 def carregar_poligono_brasil():
     """
@@ -320,7 +348,7 @@ def carregar_var_bioclim(numero_var):
         logger.error(f"Erro ao carregar variável bioclimática {numero_var}: {str(e)}")
         raise ValueError(f"Não foi possível carregar a variável BIO{numero_var}")
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl="1d", show_spinner=False)
 @tratar_excecao
 def extrair_valores_em_cache(_imagem, df, nome_banda, numero_var):
     """
@@ -608,6 +636,8 @@ def buscar_ocorrencias_gbif(especie, limite=100):
         
         logger.info(f"Buscando ocorrências para '{especie}' com limite {limite}")
         
+        # Adicione um pequeno atraso antes da requisição para evitar sobrecarga da API
+        time.sleep(0.5)  # Aguarda 0.5 segundos antes de fazer a requisição
         # Faz a requisição com timeout
         with st.spinner(f"Consultando a API do GBIF para {especie}..."):
             response = requests.get(url, params=params, timeout=30)
@@ -2053,6 +2083,7 @@ def main():
     """
     Função principal que controla o fluxo do aplicativo e configura a barra lateral.
     """
+    
     # Configuração da barra lateral
     st.sidebar.title("TAIPA - Navegação")
     

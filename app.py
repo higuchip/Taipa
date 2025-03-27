@@ -68,10 +68,7 @@ def inicializar_ee_singleton():
 # Configuração do sistema de logging
 def configurar_logging():
     """
-    Configura o sistema de logging da aplicação.
-    
-    Define dois handlers: um para o console e outro para um arquivo,
-    com formatação personalizada para facilitar o debugging.
+    Configura o sistema de logging da aplicação com rotação de arquivos.
     """
     # Certifique-se de que o diretório de logs existe
     if not os.path.exists('logs'):
@@ -91,8 +88,14 @@ def configurar_logging():
     console_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     console_handler.setFormatter(console_format)
     
-    # Handler para arquivo
-    file_handler = logging.FileHandler('logs/taipa.log')
+    # Handler para arquivo COM ROTAÇÃO
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
+        'logs/taipa.log',
+        maxBytes=5 * 1024 * 1024,  # 5 MB por arquivo
+        backupCount=3,             # Mantém até 3 arquivos de backup
+        encoding='utf-8'
+    )
     file_handler.setLevel(logging.DEBUG)
     file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(file_format)

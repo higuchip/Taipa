@@ -1,0 +1,166 @@
+api:
+  gbif:
+    base_url: https://api.gbif.org/v1/occurrence/search
+    limite_maximo: 10000
+    limite_padrao: 100
+descricoes_bio:
+  1: "Temperatura M\xE9dia Anual"
+  2: "Amplitude Diurna M\xE9dia (M\xE9dia mensal de (temp. m\xE1xima - temp. m\xED\
+    nima))"
+  3: "Isotermalidade (BIO2/BIO7) (\xD7100)"
+  4: "Sazonalidade da Temperatura (desvio padr\xE3o \xD7100)"
+  5: "Temperatura M\xE1xima do M\xEAs Mais Quente"
+  6: "Temperatura M\xEDnima do M\xEAs Mais Frio"
+  7: Amplitude Anual da Temperatura (BIO5 - BIO6)
+  8: "Temperatura M\xE9dia do Trimestre Mais \xDAmido"
+  9: "Temperatura M\xE9dia do Trimestre Mais Seco"
+  10: "Temperatura M\xE9dia do Trimestre Mais Quente"
+  11: "Temperatura M\xE9dia do Trimestre Mais Frio"
+  12: "Precipita\xE7\xE3o Anual"
+  13: "Precipita\xE7\xE3o do M\xEAs Mais Chuvoso"
+  14: "Precipita\xE7\xE3o do M\xEAs Mais Seco"
+  15: "Sazonalidade da Precipita\xE7\xE3o (Coeficiente de Varia\xE7\xE3o)"
+  16: "Precipita\xE7\xE3o do Trimestre Mais Chuvoso"
+  17: "Precipita\xE7\xE3o do Trimestre Mais Seco"
+  18: "Precipita\xE7\xE3o do Trimestre Mais Quente"
+  19: "Precipita\xE7\xE3o do Trimestre Mais Frio"
+earth_engine:
+  asset_base: projects/earthengine-legacy/assets/projects/sat-io/open-datasets/worldclim/bio
+pseudoausencias:
+  buffer_padrao_km: 50
+  max_tentativas_por_ponto: 1000
+  maximo: 500
+  minimo: 50
+  padrao: 100
+vif:
+  limiar: 10
+vis_params:
+  1:
+    max: 30
+    min: 10
+    palette:
+    - blue
+    - cyan
+    - green
+    - yellow
+    - red
+  2:
+    max: 20
+    min: 0
+    palette:
+    - white
+    - blue
+  3:
+    max: 100
+    min: 0
+    palette:
+    - yellow
+    - orange
+    - red
+  4:
+    max: 500
+    min: 0
+    palette:
+    - white
+    - blue
+  5:
+    max: 50
+    min: 10
+    palette:
+    - white
+    - red
+  6:
+    max: 30
+    min: 0
+    palette:
+    - white
+    - blue
+  7:
+    max: 50
+    min: 0
+    palette:
+    - white
+    - green
+  8:
+    max: 40
+    min: 5
+    palette:
+    - yellow
+    - red
+  9:
+    max: 30
+    min: 0
+    palette:
+    - white
+    - yellow
+    - blue
+  10:
+    max: 30
+    min: 10
+    palette:
+    - white
+    - red
+  11:
+    max: 30
+    min: 0
+    palette:
+    - blue
+    - green
+    - yellow
+    - red
+  12:
+    max: 3000
+    min: 200
+    palette:
+    - red
+    - yellow
+    - blue
+  13:
+    max: 300
+    min: 0
+    palette:
+    - red
+    - yellow
+    - blue
+  14:
+    max: 200
+    min: 0
+    palette:
+    - red
+    - yellow
+    - blue
+  15:
+    max: 100
+    min: 0
+    palette:
+    - white
+    - orange
+    - red
+  16:
+    max: 1000
+    min: 0
+    palette:
+    - white
+    - lightblue
+    - blue
+  17:
+    max: 300
+    min: 0
+    palette:
+    - red
+    - yellow
+    - blue
+  18:
+    max: 1000
+    min: 0
+    palette:
+    - white
+    - lightblue
+    - blue
+  19:
+    max: 800
+    min: 0
+    palette:
+    - white
+    - lightblue
+    - blue

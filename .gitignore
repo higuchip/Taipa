@@ -41,6 +41,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+logs/
 
 # Arquivos de tradução
 *.mo
@@ -60,3 +61,5 @@ coverage.xml
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+
